@@ -9,12 +9,30 @@
 
 main();
 
-// console.log("asdf");
-// document.addEventListener("DOMContentLoaded", function () {
-//   // Your code here
-//   console.log("JavaScript code rerun when DOM content is loaded");
-//   // main();
-// });
+function handleMutations(mutationsList) {
+  // console.log("start");
+  // console.log(mutationsList);
+  for (let mutation of mutationsList) {
+    if (
+      mutation.type === "childList" &&
+      mutation.target.classList.contains("sb-wordlist-items-pag")
+    ) {
+      const nodesWithClass = Array.from(mutation.addedNodes).filter((node) => {
+        return node.nodeType === 1 && node.tagName.toLowerCase() === "li";
+      });
+      // console.log(nodesWithClass.map((node) => node.textContent));
+      if (nodesWithClass.length > 0) {
+        main();
+      }
+    }
+  }
+  // console.log("end");
+}
+
+const observer = new MutationObserver(handleMutations);
+
+// Start observing changes in the document
+observer.observe(document, { childList: true, subtree: true });
 
 function main() {
   const hints = document.getElementsByClassName("pz-toolbar-button__hints")[0]
@@ -28,23 +46,55 @@ function main() {
   }
 }
 
-function analyze(html) {
-  hintsData = analyzeHintsPage(html);
-  analyzeGuessesPage().then((guesses) => console.log(guesses));
+async function analyze(html) {
+  const hintsData = analyzeHintsPage(html);
+  const guessesData = await analyzeGuessesPage();
+  let out = {};
+  for (const objKey in hintsData) {
+    out[objKey] = {};
+    if (objKey == "totalWordsNumbers") {
+      for (const category in hintsData[objKey]) {
+        out[objKey][category] = [
+          guessesData[objKey][category],
+          hintsData[objKey][category],
+        ];
+      }
+    } else {
+      for (const k1 in hintsData[objKey]) {
+        out[objKey][k1] = {};
+        for (const k2 in hintsData[objKey][k1]) {
+          if (k1 in guessesData[objKey] && k2 in guessesData[objKey][k1]) {
+            out[objKey][k1][k2] = [
+              guessesData[objKey][k1][k2],
+              hintsData[objKey][k1][k2],
+            ];
+          } else {
+            out[objKey][k1][k2] = [0, hintsData[objKey][k1][k2]];
+          }
+        }
+      }
+    }
+  }
+  console.log("logging out");
+  console.log(out);
+  return out;
 }
 
 function formatLettersTable(table) {
   const lettersTable = {};
+  let wordLengths = Array.from(table.rows[0].cells)
+    .slice(1)
+    .map((content) => content.textContent);
   for (let i = 1; i < table.rows.length - 1; i++) {
     const row = table.rows[i];
-    const rowData = [];
+    let rowData = {};
     const letter = row.cells[0].getElementsByTagName("span")[0].textContent;
     for (let j = 1; j < row.cells.length; j++) {
       const num = row.cells[j].textContent;
       if (num == "-") {
-        rowData.push(0);
+        rowData[wordLengths[j - 1]] = 0;
       } else {
-        rowData.push(parseInt(num));
+        rowData[wordLengths[j - 1]] = parseInt(num);
       }
       lettersTable[letter] = rowData;
     }
@@ -54,7 +104,7 @@ function formatLettersTable(table) {
 
 function formatTotalWordNumbers(str) {
   const regex =
-    /WORDS: (\d+), POINTS: (\d+), PANGRAMS: (\d+) \((\d+) Perfect\)/;
+    /WORDS: (\d+), POINTS: (\d+), PANGRAMS: (\d+)(?: \((\d+) Perfect\))?/;
   const match = str.match(regex);
 
   if (match) {
@@ -105,9 +155,12 @@ function analyzeHintsPage(html) {
     textsToParse[4].textContent.trim()
   );
 
-  console.log(lettersTable);
-  console.log(totalWordsNumbers);
-  console.log(twoLetterNumbers);
+  // console.log("lettersTable");
+  // console.log(lettersTable);
+  // console.log("totalWordsNumbers");
+  // console.log(totalWordsNumbers);
+  // console.log("twoLetterNumbers");
+  // console.log(twoLetterNumbers);
 
   return {
     lettersTable: lettersTable,
@@ -116,7 +169,64 @@ function analyzeHintsPage(html) {
   };
 }
 
-function analyzeGuessesPage() {
+function getTotalWordsNumbers(word_list) {
+  let out = {
+    words: 0,
+    points: 0,
+    pangrams: 0,
+    perfect_pangrams: 0,
+  };
+  for (let word of word_list) {
+    out["words"]++;
+    if (word.length == 4) {
+      out["points"]++;
+    } else {
+      out["points"] += word.length;
+    }
+    const charSet = new Set();
+    for (const char of word) {
+      charSet.add(char);
+    }
+    if (charSet.size == 7) {
+      out["points"] += 7;
+      out["pangrams"];
+      if (word.length == 7) {
+        out["perfect_pangrams"]++;
+      }
+    }
+  }
+  return out;
+}
+
+function getTwoLetterNumbers(word_list) {
+  out = {};
+  for (let word of word_list) {
+    if (!(word[0] in out)) {
+      out[word[0]] = {};
+    }
+    if (!(word[1] in out[word[0]])) {
+      out[word[0]][word[1]] = 0;
+    }
+    out[word[0]][word[1]]++;
+  }
+  return out;
+}
+
+function getLettersTable(word_list) {
+  out = {};
+  for (let word of word_list) {
+    if (!(word[0] in out)) {
+      out[word[0]] = {};
+    }
+    if (!(word.length in out[word[0]])) {
+      out[word[0]][word.length] = 0;
+    }
+    out[word[0]][word.length]++;
+  }
+  return out;
+}
+
+function getGuesses() {
   return new Promise((resolve) => {
     setTimeout(() => {
       let guesses = Array.from(
@@ -132,4 +242,13 @@ function analyzeGuessesPage() {
       resolve(guesses);
     }, 1000);
   });
+}
+
+async function analyzeGuessesPage() {
+  const guesses = await getGuesses();
+  return {
+    totalWordsNumbers: getTotalWordsNumbers(guesses),
+    twoLetterNumbers: getTwoLetterNumbers(guesses),
+    lettersTable: getLettersTable(guesses),
+  };
 }
