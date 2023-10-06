@@ -40,10 +40,62 @@ function main() {
   if (hints) {
     fetch(hints)
       .then((response) => response.text())
-      .then((html) => {
-        analyze(html);
-      });
+      .then(analyze)
+      .then(displayAnalysis);
   }
+}
+
+function objectToHtmlTable(data) {
+  const table = document.createElement("table");
+  const headers = Object.keys(data[Object.keys(data)[0]]); // Assumes all rows have the same structure
+  const headerRow = table.insertRow();
+
+  // Create header cells
+  const headerCell = document.createElement("th");
+  headerRow.appendChild(headerCell);
+  headers.forEach((headerText) => {
+    const headerCell = document.createElement("th");
+    headerCell.textContent = headerText.toUpperCase();
+    headerRow.appendChild(headerCell);
+  });
+
+  // Create rows and cells
+  for (const rowKey in data) {
+    const row = table.insertRow();
+    const cell = row.insertCell();
+    cell.textContent = rowKey.toUpperCase();
+    headers.forEach((header) => {
+      const cell = row.insertCell();
+      cell.textContent = data[rowKey][header];
+    });
+  }
+
+  return table;
+}
+
+function displayAnalysis(analysis) {
+  const analysisDiv = document.createElement("div");
+  const gameBoxId = "sb-hints-plus";
+  // analysisDiv.innerHTML = `<pre>${JSON.stringify(analysis, null, 2)}</pre>`;
+  analysisDiv.id = gameBoxId;
+  analysisDiv.classList.add("sb-status-box");
+
+  const existingDiv = document.getElementById(gameBoxId);
+  if (existingDiv) {
+    existingDiv.remove();
+  }
+
+  const gameBox = document.querySelector("div.sb-content-box");
+  gameBox.insertAdjacentElement("afterbegin", analysisDiv);
+  // analysisDiv.insertAdjacentElement("afterbegin", analysis.totalWordsNumbers); fix later
+  analysisDiv.insertAdjacentElement(
+    "afterbegin",
+    objectToHtmlTable(analysis.lettersTable)
+  );
+  analysisDiv.insertAdjacentElement(
+    "afterbegin",
+    objectToHtmlTable(analysis.twoLetterNumbers)
+  );
 }
 
 async function analyze(html) {
@@ -107,12 +159,16 @@ function formatTotalWordNumbers(str) {
     /WORDS: (\d+), POINTS: (\d+), PANGRAMS: (\d+)(?: \((\d+) Perfect\))?/;
   const match = str.match(regex);
 
+  let pp = parseInt(match[4]);
+  if (isNaN(pp)) {
+    pp = 0;
+  }
   if (match) {
     return {
       words: parseInt(match[1]),
       points: parseInt(match[2]),
       pangrams: parseInt(match[3]),
-      perfect_pangrams: parseInt(match[4]),
+      perfect_pangrams: pp,
     };
   } else {
     return null; // Return null if the string format doesn't match
