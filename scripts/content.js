@@ -127,7 +127,6 @@ async function analyze(html) {
       }
     }
   }
-  console.log("logging out");
   console.log(out);
   return out;
 }
@@ -137,6 +136,7 @@ function formatLettersTable(table) {
   let wordLengths = Array.from(table.rows[0].cells)
     .slice(1)
     .map((content) => content.textContent);
+  wordLengths[wordLengths.length - 1] = "sum";
   for (let i = 1; i < table.rows.length - 1; i++) {
     const row = table.rows[i];
     let rowData = {};
@@ -278,6 +278,10 @@ function getLettersTable(word_list) {
       out[word[0]][word.length] = 0;
     }
     out[word[0]][word.length]++;
+    if (!("sum" in out[word[0]])) {
+      out[word[0]]["sum"] = 0;
+    }
+    out[word[0]]["sum"]++;
   }
   return out;
 }

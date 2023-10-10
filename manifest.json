@@ -12,7 +12,8 @@
       "js": ["scripts/content.js"],
       "matches": [
         "https://www.nytimes.com/puzzles/spelling-bee/*"
-      ]
+      ],
+      "css": ["stylesheet.css"]
     }
   ]
 }
